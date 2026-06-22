@@ -20,8 +20,12 @@ export const formatDuration = (minutes: number): string => {
   return m > 0 ? `${h}小时${m}分钟` : `${h}小时`;
 };
 
-export const getTimeAgo = (iso: string): string => {
-  const diff = Date.now() - new Date(iso).getTime();
+export const getTimeAgo = (iso: string | undefined | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime();
+  if (diff < 0) return "刚刚";
   const min = Math.floor(diff / 60000);
   if (min < 1) return "刚刚";
   if (min < 60) return `${min}分钟前`;

@@ -366,10 +366,17 @@ export const useAppStore = create<AppStore>()(
           }
         }
 
+        const now = new Date().toISOString();
         set((s) => ({
           orders: s.orders.map((o) =>
             o.id === orderId
-              ? { ...o, paid: true, paymentMethod: method, status: "picked_up" }
+              ? {
+                  ...o,
+                  paid: true,
+                  paymentMethod: method,
+                  status: "picked_up",
+                  pickedUpAt: o.pickedUpAt || now,
+                }
               : o
           ),
         }));
@@ -503,7 +510,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "car-wash-store",
-      version: 2,
+      version: 3,
       partialize: (s) => ({
         members: s.members,
         orders: s.orders,
@@ -515,6 +522,14 @@ export const useAppStore = create<AppStore>()(
             ...o,
             beforePhotos: o.beforePhotos ?? [],
             afterPhotos: o.afterPhotos ?? [],
+          }));
+        }
+        if (version < 3) {
+          const fallbackTime = new Date().toISOString();
+          persistedState.orders = persistedState.orders.map((o: any) => ({
+            ...o,
+            pickedUpAt:
+              o.status === "picked_up" ? o.pickedUpAt ?? fallbackTime : o.pickedUpAt,
           }));
         }
         return persistedState;

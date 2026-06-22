@@ -305,7 +305,10 @@ export default function Construction() {
                             {col.status === "picked_up" && (
                               <div className="w-full flex items-center justify-between text-xs">
                                 <span className="text-slate-500">
-                                  {getTimeAgo(o.pickedUpAt!)} 已取车
+                                  {(() => {
+                                    const timeAgo = getTimeAgo(o.pickedUpAt);
+                                    return timeAgo ? `${timeAgo} 已取车` : "已取车";
+                                  })()}
                                 </span>
                                 <span className="font-semibold text-slate-700">
                                   {formatCurrency(o.payableAmount)}
