@@ -86,7 +86,11 @@ const WeatherIconMap: Record<WeatherCondition, React.ComponentType<{ className?:
 };
 
 function WeatherCard() {
-  const todayWeather = useAppStore((s) => s.getTodayWeather());
+  const weatherLogs = useAppStore((s) => s.weatherLogs);
+  const todayWeather = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return weatherLogs.find((w) => w.date === today);
+  }, [weatherLogs]);
 
   if (!todayWeather) return null;
 
@@ -191,21 +195,96 @@ function CouponItem({
 
 function RainReminderPanel() {
   const coupons = useAppStore((s) => s.coupons);
-  const pendingCoupons = useAppStore((s) => s.getPendingCoupons());
-  const issueCoupon = useAppStore((s) => s.issueCoupon);
-  const scanAndCreateRainCoupons = useAppStore((s) => s.scanAndCreateRainCoupons);
-  const isRainyDay = useAppStore((s) => s.isRainyDay);
+  const weatherLogs = useAppStore((s) => s.weatherLogs);
+  const orders = useAppStore((s) => s.orders);
+  const members = useAppStore((s) => s.members);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const isTodayRainy = isRainyDay(today);
+  const { todayStr, isTodayRainy, pendingCoupons, issuedCoupons } = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayWeather = weatherLogs.find((w) => w.date === today);
+    const rainy =
+      !!todayWeather &&
+      (todayWeather.condition === "rainy" || todayWeather.condition === "stormy");
+    return {
+      todayStr: today,
+      isTodayRainy: rainy,
+      pendingCoupons: coupons.filter((c) => c.status === "pending"),
+      issuedCoupons: coupons.filter((c) => c.status === "issued"),
+    };
+  }, [coupons, weatherLogs]);
 
   useEffect(() => {
-    if (isTodayRainy) {
-      scanAndCreateRainCoupons();
-    }
-  }, [isTodayRainy, scanAndCreateRainCoupons]);
+    if (!isTodayRainy) return;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-  const issuedCoupons = coupons.filter((c) => c.status === "issued");
+    const washedYesterday = orders.filter((o) => {
+      if (!o.pickedUpAt) return false;
+      const pickedDate = new Date(o.pickedUpAt).toISOString().slice(0, 10);
+      return pickedDate === yesterdayStr && o.paid;
+    });
+
+    const state = useAppStore.getState();
+    let hasNew = false;
+    const newCoupons = [];
+
+    for (const order of washedYesterday) {
+      const exists = state.coupons.find(
+        (c) => c.orderId === order.id && c.type === "rain_rewash_half"
+      );
+      if (exists) continue;
+
+      const member = order.memberId
+        ? members.find((m) => m.id === order.memberId)
+        : undefined;
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      newCoupons.push({
+        id: `C${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        type: "rain_rewash_half" as const,
+        name: "雨后复洗半价券",
+        description: "昨日洗车今日遇雨，凭券享受精洗/普洗半价优惠",
+        discount: 50,
+        discountType: "percent" as const,
+        orderId: order.id,
+        plateNumber: order.plateNumber,
+        memberId: member?.id,
+        memberName: member?.name,
+        memberPhone: member?.phone,
+        status: "pending" as const,
+        rainDate: todayStr,
+        washDate: yesterdayStr,
+        expiresAt: expiresAt.toISOString().slice(0, 10),
+        createdAt: new Date().toISOString(),
+      });
+      hasNew = true;
+    }
+
+    if (hasNew) {
+      useAppStore.setState((s) => ({ coupons: [...newCoupons, ...s.coupons] }));
+    }
+  }, [isTodayRainy, todayStr, orders, members]);
+
+  const handleIssue = (couponId: string) => {
+    const now = new Date().toISOString();
+    useAppStore.setState((s) => ({
+      coupons: s.coupons.map((c) =>
+        c.id === couponId ? { ...c, status: "issued" as const, issuedAt: now } : c
+      ),
+    }));
+  };
+
+  const handleIssueAll = () => {
+    const now = new Date().toISOString();
+    useAppStore.setState((s) => ({
+      coupons: s.coupons.map((c) =>
+        c.status === "pending" ? { ...c, status: "issued" as const, issuedAt: now } : c
+      ),
+    }));
+  };
 
   if (!isTodayRainy) {
     return (
@@ -223,10 +302,6 @@ function RainReminderPanel() {
     );
   }
 
-  const handleIssueAll = () => {
-    pendingCoupons.forEach((c) => issueCoupon(c.id));
-  };
-
   return (
     <div className="rounded-2xl border-2 border-sky-200 bg-gradient-to-br from-sky-50 via-sky-50/50 to-white p-5">
       <div className="flex items-center justify-between mb-3">
@@ -235,9 +310,7 @@ function RainReminderPanel() {
             <CloudRain className="h-5 w-5" />
           </div>
           <div>
-            <div className="font-bold text-sky-800">
-              雨天顺延提醒
-            </div>
+            <div className="font-bold text-sky-800">雨天顺延提醒</div>
             <div className="text-xs text-sky-600">
               昨日洗车 · 今日遇雨 · 自动发放半价券
             </div>
@@ -267,7 +340,7 @@ function RainReminderPanel() {
               </div>
               <div className="space-y-2">
                 {pendingCoupons.slice(0, 5).map((c) => (
-                  <CouponItem key={c.id} coupon={c} onIssue={issueCoupon} />
+                  <CouponItem key={c.id} coupon={c} onIssue={handleIssue} />
                 ))}
                 {pendingCoupons.length > 5 && (
                   <p className="text-center text-xs text-sky-500 pt-1">
@@ -285,7 +358,7 @@ function RainReminderPanel() {
               </div>
               <div className="space-y-2">
                 {issuedCoupons.slice(0, 3).map((c) => (
-                  <CouponItem key={c.id} coupon={c} onIssue={issueCoupon} />
+                  <CouponItem key={c.id} coupon={c} onIssue={handleIssue} />
                 ))}
               </div>
             </div>
