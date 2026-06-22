@@ -4,6 +4,8 @@ import type {
   CardType,
   Coupon,
   CouponStatus,
+  MaintenanceRecord,
+  MaintenanceType,
   Member,
   Order,
   OrderService,
@@ -13,6 +15,7 @@ import type {
   WeatherCondition,
   WeatherLog,
 } from "@/types";
+import { MAINTENANCE_CYCLE_DAYS } from "@/types";
 
 const DEFAULT_SERVICES: Service[] = [
   {
@@ -301,12 +304,62 @@ const DEMO_COUPONS: Coupon[] = [
   },
 ];
 
+const DEMO_MAINTENANCE: MaintenanceRecord[] = [
+  {
+    id: "MA001",
+    plateNumber: "京A88888",
+    type: "wax",
+    serviceDate: addDays(now, -55),
+    nextDueDate: addDays(now, 5),
+    memberId: "M001",
+    memberName: "张先生",
+    memberPhone: "13800138001",
+    createdAt: new Date(now.getTime() - 55 * 24 * 3600 * 1000).toISOString(),
+    reminderIssued: false,
+  },
+  {
+    id: "MA002",
+    plateNumber: "沪B66666",
+    type: "coating",
+    serviceDate: addDays(now, -300),
+    nextDueDate: addDays(now, 65),
+    memberId: "M003",
+    memberName: "王总",
+    memberPhone: "13700137003",
+    createdAt: new Date(now.getTime() - 300 * 24 * 3600 * 1000).toISOString(),
+    reminderIssued: false,
+  },
+  {
+    id: "MA003",
+    plateNumber: "粤C12345",
+    type: "interior_clean",
+    serviceDate: addDays(now, -88),
+    nextDueDate: addDays(now, 2),
+    createdAt: new Date(now.getTime() - 88 * 24 * 3600 * 1000).toISOString(),
+    reminderIssued: false,
+  },
+  {
+    id: "MA004",
+    plateNumber: "京A11111",
+    type: "wax",
+    serviceDate: addDays(now, -65),
+    nextDueDate: addDays(now, -5),
+    memberId: "M002",
+    memberName: "李女士",
+    memberPhone: "13900139002",
+    createdAt: new Date(now.getTime() - 65 * 24 * 3600 * 1000).toISOString(),
+    reminderIssued: true,
+    reminderIssuedAt: new Date(now.getTime() - 5 * 24 * 3600 * 1000).toISOString(),
+  },
+];
+
 export interface AppStore {
   services: Service[];
   members: Member[];
   orders: Order[];
   coupons: Coupon[];
   weatherLogs: WeatherLog[];
+  maintenanceRecords: MaintenanceRecord[];
 
   createOrder: (input: {
     plateNumber: string;
@@ -353,6 +406,19 @@ export interface AppStore {
   useCoupon: (couponId: string) => void;
   getPendingCoupons: () => Coupon[];
   getCouponsByPlate: (plateNumber: string) => Coupon[];
+
+  addMaintenanceRecord: (input: {
+    plateNumber: string;
+    type: MaintenanceType;
+    serviceDate: string;
+    memberId?: string;
+  }) => MaintenanceRecord;
+  updateMaintenanceRecord: (id: string, updates: Partial<MaintenanceRecord>) => void;
+  deleteMaintenanceRecord: (id: string) => void;
+  getMaintenanceByPlate: (plateNumber: string) => MaintenanceRecord[];
+  getMaintenanceReminders: () => MaintenanceRecord[];
+  issueMaintenanceReminder: (id: string) => void;
+  getMemberBalance: (memberId: string) => number;
 }
 
 const calcDiscount = (
@@ -383,6 +449,7 @@ export const useAppStore = create<AppStore>()(
       orders: DEMO_ORDERS,
       coupons: DEMO_COUPONS,
       weatherLogs: DEMO_WEATHER_LOGS,
+      maintenanceRecords: DEMO_MAINTENANCE,
 
       createOrder: ({
         plateNumber,
@@ -745,21 +812,91 @@ export const useAppStore = create<AppStore>()(
         get().coupons.filter(
           (c) => c.plateNumber === plateNumber.toUpperCase().trim() && c.status !== "expired"
         ),
+
+      addMaintenanceRecord: ({ plateNumber, type, serviceDate, memberId }) => {
+        const { members } = get();
+        const member = memberId ? members.find((m) => m.id === memberId) : undefined;
+        const cycleDays = MAINTENANCE_CYCLE_DAYS[type];
+        const nextDueDate = addDays(new Date(serviceDate), cycleDays);
+        const record: MaintenanceRecord = {
+          id: genId("MA"),
+          plateNumber: plateNumber.toUpperCase().trim(),
+          type,
+          serviceDate,
+          nextDueDate,
+          memberId: member?.id,
+          memberName: member?.name,
+          memberPhone: member?.phone,
+          createdAt: new Date().toISOString(),
+          reminderIssued: false,
+        };
+        set((s) => ({ maintenanceRecords: [record, ...s.maintenanceRecords] }));
+        return record;
+      },
+
+      updateMaintenanceRecord: (id, updates) => {
+        set((s) => ({
+          maintenanceRecords: s.maintenanceRecords.map((r) =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
+        }));
+      },
+
+      deleteMaintenanceRecord: (id) => {
+        set((s) => ({
+          maintenanceRecords: s.maintenanceRecords.filter((r) => r.id !== id),
+        }));
+      },
+
+      getMaintenanceByPlate: (plateNumber) =>
+        get().maintenanceRecords.filter(
+          (r) => r.plateNumber === plateNumber.toUpperCase().trim()
+        ),
+
+      getMaintenanceReminders: () => {
+        const { maintenanceRecords } = get();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayTs = today.getTime();
+        const sevenDaysLater = addDays(today, 7);
+        const sevenDaysLaterTs = new Date(sevenDaysLater).getTime();
+
+        return maintenanceRecords.filter((r) => {
+          const dueTs = new Date(r.nextDueDate).getTime();
+          return dueTs <= sevenDaysLaterTs || dueTs < todayTs;
+        });
+      },
+
+      issueMaintenanceReminder: (id) => {
+        const now = new Date().toISOString();
+        set((s) => ({
+          maintenanceRecords: s.maintenanceRecords.map((r) =>
+            r.id === id ? { ...r, reminderIssued: true, reminderIssuedAt: now } : r
+          ),
+        }));
+      },
+
+      getMemberBalance: (memberId) => {
+        const member = get().members.find((m) => m.id === memberId);
+        return member ? member.balance : 0;
+      },
     }),
     {
       name: "car-wash-store",
-      version: 4,
+      version: 5,
       partialize: (s) => ({
         members: s.members,
         orders: s.orders,
         coupons: s.coupons,
         weatherLogs: s.weatherLogs,
+        maintenanceRecords: s.maintenanceRecords,
       }),
       migrate: (persistedState: unknown, version) => {
         const state = (persistedState ?? {}) as Record<string, unknown>;
         if (!Array.isArray(state.orders)) state.orders = [];
         if (!Array.isArray(state.coupons)) state.coupons = [];
         if (!Array.isArray(state.weatherLogs)) state.weatherLogs = [];
+        if (!Array.isArray(state.maintenanceRecords)) state.maintenanceRecords = [];
 
         if (version < 2) {
           state.orders = (state.orders as Array<Record<string, unknown>>).map(

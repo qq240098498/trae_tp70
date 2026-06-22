@@ -104,6 +104,42 @@ export interface WeatherLog {
   recordedAt: string;
 }
 
+export type MaintenanceType = "wax" | "coating" | "interior_clean";
+
+export const MAINTENANCE_CYCLE_DAYS: Record<MaintenanceType, number> = {
+  wax: 60,
+  coating: 365,
+  interior_clean: 90,
+};
+
+export const MAINTENANCE_TEXT: Record<MaintenanceType, string> = {
+  wax: "打蜡",
+  coating: "镀晶",
+  interior_clean: "内饰清洗",
+};
+
+export const MAINTENANCE_PRICE: Record<MaintenanceType, number> = {
+  wax: 168,
+  coating: 1280,
+  interior_clean: 258,
+};
+
+export interface MaintenanceRecord {
+  id: string;
+  plateNumber: string;
+  type: MaintenanceType;
+  serviceDate: string;
+  nextDueDate: string;
+  memberId?: string;
+  memberName?: string;
+  memberPhone?: string;
+  createdAt: string;
+  reminderIssued?: boolean;
+  reminderIssuedAt?: string;
+}
+
+export type MaintenanceReminderStatus = "ok" | "warning" | "due" | "overdue";
+
 export const STATUS_TEXT: Record<OrderStatus, string> = {
   pending: "待施工",
   in_progress: "施工中",
