@@ -5,6 +5,7 @@ import Reception from "@/pages/Reception";
 import Construction from "@/pages/Construction";
 import Members from "@/pages/Members";
 import Checkout from "@/pages/Checkout";
+import Maintenance from "@/pages/Maintenance";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/construction" element={<Construction />} />
           <Route path="/members" element={<Members />} />
           <Route path="/checkout/:orderId" element={<Checkout />} />
+          <Route path="/maintenance" element={<Maintenance />} />
         </Route>
       </Routes>
     </Router>

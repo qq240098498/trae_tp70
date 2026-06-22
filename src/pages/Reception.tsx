@@ -13,11 +13,32 @@ import {
   Clock,
   Sparkles,
   AlertCircle,
+  ShieldCheck,
+  Sofa,
+  CalendarDays,
 } from "lucide-react";
 import { useAppStore } from "@/store";
-import type { Member } from "@/types";
-import { CAR_COLORS, CAR_MODELS, CARD_TYPE_COLOR, CARD_TYPE_TEXT } from "@/types";
+import type { Member, MaintenanceType } from "@/types";
+import { CAR_COLORS, CAR_MODELS, CARD_TYPE_COLOR, CARD_TYPE_TEXT, MAINTENANCE_TEXT } from "@/types";
 import { formatCurrency, formatDuration, validatePlate, validatePhone, daysUntilExpiry } from "@/utils/format";
+
+const MAINTENANCE_SERVICE_IDS: Record<MaintenanceType, string> = {
+  wax: "S003",
+  coating: "S004",
+  interior_clean: "S005",
+};
+
+const MAINTENANCE_ICONS: Record<MaintenanceType, React.ComponentType<{ className?: string }>> = {
+  wax: Sparkles,
+  coating: ShieldCheck,
+  interior_clean: Sofa,
+};
+
+const MAINTENANCE_COLORS: Record<MaintenanceType, string> = {
+  wax: "from-amber-400 to-orange-500",
+  coating: "from-blue-500 to-indigo-600",
+  interior_clean: "from-emerald-500 to-teal-600",
+};
 
 export default function Reception() {
   const navigate = useNavigate();
@@ -78,6 +99,14 @@ export default function Reception() {
     setNewName("");
     setNewPhone("");
   };
+
+  const groupedServices = useMemo(() => {
+    const maintenanceIds = new Set(Object.values(MAINTENANCE_SERVICE_IDS));
+    return {
+      wash: services.filter((s) => !maintenanceIds.has(s.id)),
+      maintenance: services.filter((s) => maintenanceIds.has(s.id)),
+    };
+  }, [services]);
 
   const selectedServices = useMemo(
     () => services.filter((s) => selected.includes(s.id)),
@@ -266,49 +295,134 @@ export default function Reception() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {services.map((s) => {
-              const isSelected = selected.includes(s.id);
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => toggleService(s.id)}
-                  className={`relative text-left rounded-xl p-4 border-2 transition-all duration-200 ${
-                    isSelected
-                      ? "border-navy-800 bg-navy-50 shadow-md"
-                      : "border-navy-100 bg-white hover:border-navy-300 hover:bg-navy-50/50"
-                  }`}
-                >
-                  {isSelected && (
-                    <div className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-navy-800 text-white shadow">
-                      <Check className="h-4 w-4" />
-                    </div>
-                  )}
-                  <div className="pr-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-navy-900">{s.name}</h3>
-                      <span className="text-xs font-medium text-gold-600 bg-gold-50 px-2 py-0.5 rounded-full">
-                        {s.category}
-                      </span>
-                    </div>
-                    <p className="text-xs text-navy-500 mt-1 leading-relaxed line-clamp-2">
-                      {s.description}
-                    </p>
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-bold text-navy-900">
-                          {formatCurrency(s.price)}
-                        </span>
-                        <span className="text-xs text-navy-400 inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(s.duration)}
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-navy-100 text-navy-700">
+                <Car className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-navy-900 text-sm">基础清洗服务</h3>
+                <p className="text-xs text-navy-500 -mt-0.5">普洗/精洗/发动机舱清洗</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {groupedServices.wash.map((s) => {
+                const isSelected = selected.includes(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleService(s.id)}
+                    className={`relative text-left rounded-xl p-4 border-2 transition-all duration-200 ${
+                      isSelected
+                        ? "border-navy-800 bg-navy-50 shadow-md"
+                        : "border-navy-100 bg-white hover:border-navy-300 hover:bg-navy-50/50"
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-navy-800 text-white shadow">
+                        <Check className="h-4 w-4" />
+                      </div>
+                    )}
+                    <div className="pr-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-navy-900">{s.name}</h3>
+                        <span className="text-xs font-medium text-gold-600 bg-gold-50 px-2 py-0.5 rounded-full">
+                          {s.category}
                         </span>
                       </div>
+                      <p className="text-xs text-navy-500 mt-1 leading-relaxed line-clamp-2">
+                        {s.description}
+                      </p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-bold text-navy-900">
+                            {formatCurrency(s.price)}
+                          </span>
+                          <span className="text-xs text-navy-400 inline-flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(s.duration)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-navy-900 text-sm">美容保养服务</h3>
+                <p className="text-xs text-navy-500 -mt-0.5">
+                  打蜡/镀晶/内饰清洗 · 自动记录保养周期
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {groupedServices.maintenance.map((s) => {
+                const isSelected = selected.includes(s.id);
+                const mType = (Object.keys(MAINTENANCE_SERVICE_IDS) as MaintenanceType[]).find(
+                  (k) => MAINTENANCE_SERVICE_IDS[k] === s.id
+                )!;
+                const MIcon = MAINTENANCE_ICONS[mType];
+                const mColor = MAINTENANCE_COLORS[mType];
+                const cycleDays = { wax: 60, coating: 365, interior_clean: 90 }[mType];
+
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleService(s.id)}
+                    className={`relative text-left rounded-xl p-4 border-2 transition-all duration-200 ${
+                      isSelected
+                        ? `border-indigo-500 bg-gradient-to-br ${mColor} shadow-lg text-white`
+                        : "border-indigo-200 bg-gradient-to-br from-indigo-50 to-white hover:border-indigo-400 hover:shadow-md"
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-white text-indigo-600 shadow">
+                        <Check className="h-4 w-4" />
+                      </div>
+                    )}
+                    <div className="pr-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className={`font-bold flex items-center gap-1.5 ${isSelected ? "text-white" : "text-navy-900"}`}>
+                          <MIcon className="h-4 w-4" />
+                          {s.name}
+                        </h3>
+                        <span
+                          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            isSelected
+                              ? "bg-white/25 text-white"
+                              : `bg-gradient-to-r ${mColor} text-white`
+                          }`}
+                        >
+                          保养 · {cycleDays}天周期
+                        </span>
+                      </div>
+                      <p className={`text-xs mt-1 leading-relaxed line-clamp-2 ${isSelected ? "text-white/80" : "text-navy-500"}`}>
+                        {s.description}
+                      </p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className={`text-lg font-bold ${isSelected ? "text-white" : "text-navy-900"}`}>
+                            {formatCurrency(s.price)}
+                          </span>
+                          <span className={`text-xs inline-flex items-center gap-1 ${isSelected ? "text-white/70" : "text-navy-400"}`}>
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(s.duration)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

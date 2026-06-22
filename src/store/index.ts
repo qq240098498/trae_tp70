@@ -421,6 +421,12 @@ export interface AppStore {
   getMemberBalance: (memberId: string) => number;
 }
 
+const MAINTENANCE_SERVICE_MAP: Record<string, MaintenanceType> = {
+  S003: "wax",
+  S004: "coating",
+  S005: "interior_clean",
+};
+
 const calcDiscount = (
   services: OrderService[],
   member?: Member
@@ -497,6 +503,55 @@ export const useAppStore = create<AppStore>()(
 
       updateOrderStatus: (orderId, status) => {
         const now = new Date().toISOString();
+        const { orders, maintenanceRecords, members } = get();
+        const order = orders.find((o) => o.id === orderId);
+
+        if (
+          order &&
+          (status === "completed" || status === "picked_up") &&
+          order.status !== "completed" &&
+          order.status !== "picked_up"
+        ) {
+          const serviceDate = new Date().toISOString().slice(0, 10);
+          const newMaintenanceRecords: MaintenanceRecord[] = [];
+
+          for (const svc of order.services) {
+            const mType = MAINTENANCE_SERVICE_MAP[svc.serviceId];
+            if (!mType) continue;
+
+            const exists = maintenanceRecords.find(
+              (mr) => mr.plateNumber === order.plateNumber && mr.type === mType
+            );
+            if (exists) continue;
+
+            const cycleDays = MAINTENANCE_CYCLE_DAYS[mType];
+            const nextDueDate = addDays(new Date(serviceDate), cycleDays);
+
+            const member = order.memberId
+              ? members.find((m) => m.id === order.memberId)
+              : undefined;
+
+            newMaintenanceRecords.push({
+              id: genId("MA"),
+              plateNumber: order.plateNumber,
+              type: mType,
+              serviceDate,
+              nextDueDate,
+              memberId: member?.id,
+              memberName: member?.name,
+              memberPhone: member?.phone,
+              createdAt: now,
+              reminderIssued: false,
+            });
+          }
+
+          if (newMaintenanceRecords.length > 0) {
+            set((s) => ({
+              maintenanceRecords: [...newMaintenanceRecords, ...s.maintenanceRecords],
+            }));
+          }
+        }
+
         set((s) => ({
           orders: s.orders.map((o) =>
             o.id === orderId
@@ -562,6 +617,49 @@ export const useAppStore = create<AppStore>()(
         }
 
         const now = new Date().toISOString();
+        const { maintenanceRecords, members } = get();
+
+        if (order && order.status !== "picked_up") {
+          const serviceDate = new Date().toISOString().slice(0, 10);
+          const newMaintenanceRecords: MaintenanceRecord[] = [];
+
+          for (const svc of order.services) {
+            const mType = MAINTENANCE_SERVICE_MAP[svc.serviceId];
+            if (!mType) continue;
+
+            const exists = maintenanceRecords.find(
+              (mr) => mr.plateNumber === order.plateNumber && mr.type === mType
+            );
+            if (exists) continue;
+
+            const cycleDays = MAINTENANCE_CYCLE_DAYS[mType];
+            const nextDueDate = addDays(new Date(serviceDate), cycleDays);
+
+            const member = order.memberId
+              ? members.find((m) => m.id === order.memberId)
+              : undefined;
+
+            newMaintenanceRecords.push({
+              id: genId("MA"),
+              plateNumber: order.plateNumber,
+              type: mType,
+              serviceDate,
+              nextDueDate,
+              memberId: member?.id,
+              memberName: member?.name,
+              memberPhone: member?.phone,
+              createdAt: now,
+              reminderIssued: false,
+            });
+          }
+
+          if (newMaintenanceRecords.length > 0) {
+            set((s) => ({
+              maintenanceRecords: [...newMaintenanceRecords, ...s.maintenanceRecords],
+            }));
+          }
+        }
+
         set((s) => ({
           orders: s.orders.map((o) =>
             o.id === orderId

@@ -1410,6 +1410,14 @@ export default function Dashboard() {
       iconColor: "bg-gold-400 text-navy-900",
     },
     {
+      label: "保养周期",
+      desc: "打蜡/镀晶/内饰清洗管理",
+      to: "/maintenance",
+      icon: CalendarDays,
+      color: "from-indigo-500 to-purple-700 text-white",
+      iconColor: "bg-white/20 text-white",
+    },
+    {
       label: "会员开卡",
       desc: "新会员注册登记",
       to: "/members",

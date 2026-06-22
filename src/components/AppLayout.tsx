@@ -6,6 +6,7 @@ import {
   Users,
   Sparkles,
   Car,
+  CalendarDays,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -26,6 +27,12 @@ const NAV_ITEMS = [
     label: "施工管理",
     icon: ClipboardList,
     desc: "施工状态跟踪看板",
+  },
+  {
+    to: "/maintenance",
+    label: "保养周期",
+    icon: CalendarDays,
+    desc: "打蜡/镀晶/内饰清洗管理",
   },
   {
     to: "/members",
