@@ -94,6 +94,12 @@ function getMaintenanceStatus(nextDueDate: string): {
   };
 }
 
+const MaintenanceServiceMap: Record<string, MaintenanceType> = {
+  S003: "wax",
+  S004: "coating",
+  S005: "interior_clean",
+};
+
 function MaintenanceAddModal({
   open,
   onClose,
@@ -101,24 +107,41 @@ function MaintenanceAddModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const services = useAppStore((s) => s.services);
   const members = useAppStore((s) => s.members);
   const addMaintenanceRecord = useAppStore((s) => s.addMaintenanceRecord);
 
+  const maintenanceServices = useMemo(
+    () =>
+      services
+        .filter((s) => MaintenanceServiceMap[s.id])
+        .map((s) => ({
+          ...s,
+          maintenanceType: MaintenanceServiceMap[s.id] as MaintenanceType,
+        })),
+    [services]
+  );
+
   const [formPlate, setFormPlate] = useState("");
-  const [formType, setFormType] = useState<MaintenanceType>("wax");
+  const [formServiceId, setFormServiceId] = useState<string>(
+    maintenanceServices[0]?.id || "S003"
+  );
   const [formDate, setFormDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [formMemberId, setFormMemberId] = useState<string>("");
 
   useEffect(() => {
     if (open) {
       setFormPlate("");
-      setFormType("wax");
+      setFormServiceId(maintenanceServices[0]?.id || "S003");
       setFormDate(new Date().toISOString().slice(0, 10));
       setFormMemberId("");
     }
-  }, [open]);
+  }, [open, maintenanceServices]);
 
   if (!open) return null;
+
+  const selectedService = maintenanceServices.find((s) => s.id === formServiceId);
+  const formType = selectedService?.maintenanceType || "wax";
 
   const handleSubmit = () => {
     if (!formPlate.trim()) return;
@@ -174,37 +197,39 @@ function MaintenanceAddModal({
           </div>
           <div>
             <label className="block text-sm font-semibold text-navy-800 mb-2">
-              保养类型
+              保养项目
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { key: "wax" as const, label: "打蜡", Icon: Sparkles, price: MAINTENANCE_PRICE.wax },
-                { key: "coating" as const, label: "镀晶", Icon: ShieldCheck, price: MAINTENANCE_PRICE.coating },
-                { key: "interior_clean" as const, label: "内饰清洗", Icon: Sofa, price: MAINTENANCE_PRICE.interior_clean },
-              ].map((opt) => {
-                const active = formType === opt.key;
-                const OptIcon = opt.Icon;
-                const colors = MaintenanceColorMap[opt.key];
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setFormType(opt.key)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 transition-all ${
-                      active
-                        ? `bg-gradient-to-br ${colors.gradient} text-white border-transparent shadow-md`
-                        : `${colors.badge} hover:shadow`
-                    }`}
-                  >
-                    <OptIcon className="h-6 w-6" />
-                    <span className="text-xs font-semibold">{opt.label}</span>
-                    <span className={`text-[10px] ${active ? "text-white/80" : "text-navy-500"}`}>
-                      {formatCurrency(opt.price)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {maintenanceServices.length === 0 ? (
+              <div className="text-sm text-navy-400 py-4 text-center rounded-xl bg-navy-50 border border-dashed border-navy-200">
+                暂无保养服务项目
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {maintenanceServices.map((svc) => {
+                  const active = formServiceId === svc.id;
+                  const OptIcon = MaintenanceIconMap[svc.maintenanceType];
+                  const colors = MaintenanceColorMap[svc.maintenanceType];
+                  return (
+                    <button
+                      key={svc.id}
+                      type="button"
+                      onClick={() => setFormServiceId(svc.id)}
+                      className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 transition-all ${
+                        active
+                          ? `bg-gradient-to-br ${colors.gradient} text-white border-transparent shadow-md`
+                          : `${colors.badge} hover:shadow`
+                      }`}
+                    >
+                      <OptIcon className="h-6 w-6" />
+                      <span className="text-xs font-semibold">{svc.name}</span>
+                      <span className={`text-[10px] ${active ? "text-white/80" : "text-navy-500"}`}>
+                        {formatCurrency(svc.price)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-semibold text-navy-800 mb-2">
@@ -242,7 +267,7 @@ function MaintenanceAddModal({
               <Info className="h-4 w-4 text-navy-400 shrink-0" />
               <div>
                 <span className="font-semibold">下次保养日期：</span>
-                {nextDueStr}（{MAINTENANCE_TEXT[formType]}周期 {cycleDays} 天）
+                {nextDueStr}（{selectedService?.name || MAINTENANCE_TEXT[formType]}周期 {cycleDays} 天）
               </div>
             </div>
           </div>
