@@ -70,6 +70,40 @@ export interface Order {
   afterPhotos: string[];
 }
 
+export type CouponStatus = "pending" | "issued" | "used" | "expired";
+export type CouponType = "rain_rewash_half";
+
+export interface Coupon {
+  id: string;
+  type: CouponType;
+  name: string;
+  description: string;
+  discount: number;
+  discountType: "percent" | "amount";
+  orderId: string;
+  plateNumber: string;
+  memberId?: string;
+  memberName?: string;
+  memberPhone?: string;
+  status: CouponStatus;
+  rainDate: string;
+  washDate: string;
+  issuedAt?: string;
+  usedAt?: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export type WeatherCondition = "sunny" | "cloudy" | "rainy" | "stormy";
+
+export interface WeatherLog {
+  date: string;
+  condition: WeatherCondition;
+  temperature: number;
+  description: string;
+  recordedAt: string;
+}
+
 export const STATUS_TEXT: Record<OrderStatus, string> = {
   pending: "待施工",
   in_progress: "施工中",
@@ -127,3 +161,31 @@ export const CAR_COLORS = [
   "绿色",
   "其他",
 ];
+
+export const COUPON_STATUS_TEXT: Record<CouponStatus, string> = {
+  pending: "待发放",
+  issued: "已发放",
+  used: "已使用",
+  expired: "已过期",
+};
+
+export const COUPON_STATUS_COLOR: Record<CouponStatus, string> = {
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  issued: "bg-sky-50 text-sky-700 border-sky-200",
+  used: "bg-slate-50 text-slate-600 border-slate-200",
+  expired: "bg-rose-50 text-rose-700 border-rose-200",
+};
+
+export const WEATHER_TEXT: Record<WeatherCondition, string> = {
+  sunny: "晴天",
+  cloudy: "多云",
+  rainy: "小雨",
+  stormy: "暴雨",
+};
+
+export const WEATHER_COLOR: Record<WeatherCondition, string> = {
+  sunny: "bg-amber-50 text-amber-700 border-amber-200",
+  cloudy: "bg-slate-50 text-slate-600 border-slate-200",
+  rainy: "bg-sky-50 text-sky-700 border-sky-200",
+  stormy: "bg-indigo-50 text-indigo-700 border-indigo-200",
+};

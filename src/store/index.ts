@@ -2,12 +2,16 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type {
   CardType,
+  Coupon,
+  CouponStatus,
   Member,
   Order,
   OrderService,
   OrderStatus,
   PaymentMethod,
   Service,
+  WeatherCondition,
+  WeatherLog,
 } from "@/types";
 
 const DEFAULT_SERVICES: Service[] = [
@@ -186,12 +190,123 @@ const DEMO_ORDERS: Order[] = [
     beforePhotos: [],
     afterPhotos: [],
   },
+  {
+    id: "O004",
+    plateNumber: "京A11111",
+    carModel: "轿车",
+    color: "白色",
+    mileage: 15200,
+    memberId: "M002",
+    memberName: "李女士",
+    memberCardType: "monthly",
+    services: [mkSvc(DEFAULT_SERVICES[0])],
+    status: "picked_up",
+    notified: true,
+    totalAmount: 35,
+    discountAmount: 0,
+    payableAmount: 35,
+    paid: true,
+    paymentMethod: "wechat",
+    createdAt: new Date(now.getTime() - 26 * 3600 * 1000).toISOString(),
+    startedAt: new Date(now.getTime() - 25 * 3600 * 1000).toISOString(),
+    completedAt: new Date(now.getTime() - 24.5 * 3600 * 1000).toISOString(),
+    pickedUpAt: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+    beforePhotos: [],
+    afterPhotos: [],
+  },
+  {
+    id: "O005",
+    plateNumber: "京A22222",
+    carModel: "SUV",
+    color: "黑色",
+    mileage: 42000,
+    status: "picked_up",
+    notified: true,
+    services: [mkSvc(DEFAULT_SERVICES[1])],
+    totalAmount: 88,
+    discountAmount: 0,
+    payableAmount: 88,
+    paid: true,
+    paymentMethod: "cash",
+    createdAt: new Date(now.getTime() - 30 * 3600 * 1000).toISOString(),
+    startedAt: new Date(now.getTime() - 29 * 3600 * 1000).toISOString(),
+    completedAt: new Date(now.getTime() - 28 * 3600 * 1000).toISOString(),
+    pickedUpAt: new Date(now.getTime() - 27.5 * 3600 * 1000).toISOString(),
+    beforePhotos: [],
+    afterPhotos: [],
+  },
+];
+
+const yesterdayStr = addDays(now, -1);
+const todayDateStr = addDays(now, 0);
+const tomorrowStr = addDays(now, 1);
+
+const DEMO_WEATHER_LOGS: WeatherLog[] = [
+  {
+    date: yesterdayStr,
+    condition: "sunny",
+    temperature: 28,
+    description: "昨日晴好，适宜洗车",
+    recordedAt: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+  },
+  {
+    date: todayDateStr,
+    condition: "rainy",
+    temperature: 22,
+    description: "今日有小雨，洗车顾客可享雨后复洗半价",
+    recordedAt: todayStr,
+  },
+  {
+    date: tomorrowStr,
+    condition: "cloudy",
+    temperature: 25,
+    description: "明日多云转晴",
+    recordedAt: todayStr,
+  },
+];
+
+const DEMO_COUPONS: Coupon[] = [
+  {
+    id: "C001",
+    type: "rain_rewash_half",
+    name: "雨后复洗半价券",
+    description: "昨日洗车今日遇雨，凭券享受精洗/普洗半价优惠",
+    discount: 50,
+    discountType: "percent",
+    orderId: "O004",
+    plateNumber: "京A11111",
+    memberId: "M002",
+    memberName: "李女士",
+    memberPhone: "13900139002",
+    status: "pending",
+    rainDate: todayDateStr,
+    washDate: yesterdayStr,
+    expiresAt: addDays(now, 7),
+    createdAt: todayStr,
+  },
+  {
+    id: "C002",
+    type: "rain_rewash_half",
+    name: "雨后复洗半价券",
+    description: "昨日洗车今日遇雨，凭券享受精洗/普洗半价优惠",
+    discount: 50,
+    discountType: "percent",
+    orderId: "O005",
+    plateNumber: "京A22222",
+    status: "pending",
+    rainDate: todayDateStr,
+    washDate: yesterdayStr,
+    expiresAt: addDays(now, 7),
+    createdAt: todayStr,
+  },
 ];
 
 export interface AppStore {
   services: Service[];
   members: Member[];
   orders: Order[];
+  coupons: Coupon[];
+  weatherLogs: WeatherLog[];
 
   createOrder: (input: {
     plateNumber: string;
@@ -227,6 +342,17 @@ export interface AppStore {
 
   addPhotos: (orderId: string, stage: "before" | "after", photos: string[]) => void;
   removePhoto: (orderId: string, stage: "before" | "after", index: number) => void;
+
+  recordWeather: (date: string, condition: WeatherCondition, temperature?: number, description?: string) => void;
+  getTodayWeather: () => WeatherLog | undefined;
+  getWeatherByDate: (date: string) => WeatherLog | undefined;
+  isRainyDay: (date: string) => boolean;
+
+  scanAndCreateRainCoupons: () => Coupon[];
+  issueCoupon: (couponId: string) => void;
+  useCoupon: (couponId: string) => void;
+  getPendingCoupons: () => Coupon[];
+  getCouponsByPlate: (plateNumber: string) => Coupon[];
 }
 
 const calcDiscount = (
@@ -255,6 +381,8 @@ export const useAppStore = create<AppStore>()(
       services: DEFAULT_SERVICES,
       members: DEMO_MEMBERS,
       orders: DEMO_ORDERS,
+      coupons: DEMO_COUPONS,
+      weatherLogs: DEMO_WEATHER_LOGS,
 
       createOrder: ({
         plateNumber,
@@ -507,32 +635,154 @@ export const useAppStore = create<AppStore>()(
           }),
         }));
       },
+
+      recordWeather: (date, condition, temperature = 20, description = "") => {
+        const now = new Date().toISOString();
+        set((s) => {
+          const existing = s.weatherLogs.find((w) => w.date === date);
+          if (existing) {
+            return {
+              weatherLogs: s.weatherLogs.map((w) =>
+                w.date === date
+                  ? { ...w, condition, temperature, description, recordedAt: now }
+                  : w
+              ),
+            };
+          }
+          return {
+            weatherLogs: [
+              ...s.weatherLogs,
+              { date, condition, temperature, description, recordedAt: now },
+            ],
+          };
+        });
+      },
+
+      getTodayWeather: () => {
+        const today = new Date().toISOString().slice(0, 10);
+        return get().weatherLogs.find((w) => w.date === today);
+      },
+
+      getWeatherByDate: (date) => get().weatherLogs.find((w) => w.date === date),
+
+      isRainyDay: (date) => {
+        const w = get().weatherLogs.find((x) => x.date === date);
+        return w ? w.condition === "rainy" || w.condition === "stormy" : false;
+      },
+
+      scanAndCreateRainCoupons: () => {
+        const { orders, coupons, members, isRainyDay } = get();
+        const today = new Date().toISOString().slice(0, 10);
+        const yesterday = addDays(new Date(), -1);
+
+        if (!isRainyDay(today)) return [];
+
+        const washedYesterday = orders.filter((o) => {
+          if (!o.pickedUpAt) return false;
+          const pickedDate = new Date(o.pickedUpAt).toISOString().slice(0, 10);
+          return pickedDate === yesterday && o.paid;
+        });
+
+        const newCoupons: Coupon[] = [];
+        for (const order of washedYesterday) {
+          const exists = coupons.find(
+            (c) => c.orderId === order.id && c.type === "rain_rewash_half"
+          );
+          if (exists) continue;
+
+          const member = order.memberId
+            ? members.find((m) => m.id === order.memberId)
+            : undefined;
+
+          newCoupons.push({
+            id: genId("C"),
+            type: "rain_rewash_half",
+            name: "雨后复洗半价券",
+            description: "昨日洗车今日遇雨，凭券享受精洗/普洗半价优惠",
+            discount: 50,
+            discountType: "percent",
+            orderId: order.id,
+            plateNumber: order.plateNumber,
+            memberId: member?.id,
+            memberName: member?.name,
+            memberPhone: member?.phone,
+            status: "pending",
+            rainDate: today,
+            washDate: yesterday,
+            expiresAt: addDays(new Date(), 7),
+            createdAt: new Date().toISOString(),
+          });
+        }
+
+        if (newCoupons.length > 0) {
+          set((s) => ({ coupons: [...newCoupons, ...s.coupons] }));
+        }
+        return newCoupons;
+      },
+
+      issueCoupon: (couponId) => {
+        const now = new Date().toISOString();
+        set((s) => ({
+          coupons: s.coupons.map((c) =>
+            c.id === couponId ? { ...c, status: "issued" as CouponStatus, issuedAt: now } : c
+          ),
+        }));
+      },
+
+      useCoupon: (couponId) => {
+        const now = new Date().toISOString();
+        set((s) => ({
+          coupons: s.coupons.map((c) =>
+            c.id === couponId ? { ...c, status: "used" as CouponStatus, usedAt: now } : c
+          ),
+        }));
+      },
+
+      getPendingCoupons: () =>
+        get().coupons.filter((c) => c.status === "pending"),
+
+      getCouponsByPlate: (plateNumber) =>
+        get().coupons.filter(
+          (c) => c.plateNumber === plateNumber.toUpperCase().trim() && c.status !== "expired"
+        ),
     }),
     {
       name: "car-wash-store",
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         members: s.members,
         orders: s.orders,
+        coupons: s.coupons,
+        weatherLogs: s.weatherLogs,
       }),
-      migrate: (persistedState: any, version) => {
-        if (!persistedState || !persistedState.orders) return persistedState;
+      migrate: (persistedState: unknown, version) => {
+        const state = (persistedState ?? {}) as Record<string, unknown>;
+        if (!Array.isArray(state.orders)) state.orders = [];
+        if (!Array.isArray(state.coupons)) state.coupons = [];
+        if (!Array.isArray(state.weatherLogs)) state.weatherLogs = [];
+
         if (version < 2) {
-          persistedState.orders = persistedState.orders.map((o: any) => ({
-            ...o,
-            beforePhotos: o.beforePhotos ?? [],
-            afterPhotos: o.afterPhotos ?? [],
-          }));
+          state.orders = (state.orders as Array<Record<string, unknown>>).map(
+            (o) => ({
+              ...o,
+              beforePhotos: Array.isArray(o.beforePhotos) ? o.beforePhotos : [],
+              afterPhotos: Array.isArray(o.afterPhotos) ? o.afterPhotos : [],
+            })
+          );
         }
         if (version < 3) {
           const fallbackTime = new Date().toISOString();
-          persistedState.orders = persistedState.orders.map((o: any) => ({
-            ...o,
-            pickedUpAt:
-              o.status === "picked_up" ? o.pickedUpAt ?? fallbackTime : o.pickedUpAt,
-          }));
+          state.orders = (state.orders as Array<Record<string, unknown>>).map(
+            (o) => ({
+              ...o,
+              pickedUpAt:
+                o.status === "picked_up"
+                  ? (typeof o.pickedUpAt === "string" ? o.pickedUpAt : fallbackTime)
+                  : o.pickedUpAt,
+            })
+          );
         }
-        return persistedState;
+        return state;
       },
     }
   )
