@@ -18,9 +18,10 @@ interface OrderCardProps {
   order: Order;
   compact?: boolean;
   actions?: React.ReactNode;
+  photoBadge?: React.ReactNode;
 }
 
-export default function OrderCard({ order, compact, actions }: OrderCardProps) {
+export default function OrderCard({ order, compact, actions, photoBadge }: OrderCardProps) {
   return (
     <div
       className={`card card-hover overflow-hidden ${
@@ -45,7 +46,7 @@ export default function OrderCard({ order, compact, actions }: OrderCardProps) {
             <Car className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-navy-900 tracking-wide text-base">
                 {order.plateNumber}
               </span>
@@ -54,6 +55,7 @@ export default function OrderCard({ order, compact, actions }: OrderCardProps) {
                   <PhoneCall className="h-3 w-3" /> 待通知取车
                 </span>
               )}
+              {photoBadge}
             </div>
             <div className="text-xs text-navy-500 mt-0.5 flex items-center gap-1.5">
               <span>{order.color}</span>

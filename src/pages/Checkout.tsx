@@ -16,11 +16,16 @@ import {
   Sparkles,
   AlertCircle,
   ScanLine,
+  Camera,
+  GitCompare,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import type { PaymentMethod } from "@/types";
 import { PAYMENT_METHOD_TEXT, STATUS_TEXT, CARD_TYPE_TEXT, CARD_TYPE_COLOR } from "@/types";
 import { formatCurrency, formatDateTime, formatDuration } from "@/utils/format";
+import PhotoCompareModal from "@/components/PhotoCompareModal";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -38,6 +43,8 @@ export default function Checkout() {
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [paidSuccess, setPaidSuccess] = useState(false);
   const [errMsg, setErrMsg] = useState("");
+  const [showCompare, setShowCompare] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
 
   const totalDuration = useMemo(() => {
     if (!order) return 0;
@@ -335,6 +342,80 @@ export default function Checkout() {
               </span>
             </div>
 
+            {((order.beforePhotos ?? []).length > 0 || (order.afterPhotos ?? []).length > 0) && (
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-navy-900 flex items-center gap-1.5">
+                    <Camera className="h-4 w-4 text-navy-700" />
+                    施工照片记录
+                  </h3>
+                  {(order.beforePhotos ?? []).length > 0 && (order.afterPhotos ?? []).length > 0 && (
+                    <button
+                      onClick={() => setShowCompare(true)}
+                      className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-navy-700 text-white hover:bg-navy-800 transition-colors"
+                    >
+                      <GitCompare size={12} />
+                      前后对比
+                    </button>
+                  )}
+                </div>
+
+                {(order.beforePhotos ?? []).length > 0 && (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50/30 p-3">
+                    <div className="text-[11px] font-semibold text-rose-700 mb-2 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                      施工前（{(order.beforePhotos ?? []).length} 张）
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {(order.beforePhotos ?? []).map((src, i) => (
+                        <div
+                          key={i}
+                          className="relative aspect-square rounded-lg overflow-hidden border border-rose-200 bg-white group cursor-zoom-in"
+                          onClick={() => setPreviewSrc(src)}
+                        >
+                          <img
+                            src={src}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <ZoomIn size={14} className="text-white" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(order.afterPhotos ?? []).length > 0 && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-3">
+                    <div className="text-[11px] font-semibold text-emerald-700 mb-2 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      施工后（{(order.afterPhotos ?? []).length} 张）
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                      {(order.afterPhotos ?? []).map((src, i) => (
+                        <div
+                          key={i}
+                          className="relative aspect-square rounded-lg overflow-hidden border border-emerald-200 bg-white group cursor-zoom-in"
+                          onClick={() => setPreviewSrc(src)}
+                        >
+                          <img
+                            src={src}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <ZoomIn size={14} className="text-white" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {order.status !== "picked_up" && (
               <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5 text-xs text-amber-700 border border-amber-200">
                 当前状态：{STATUS_TEXT[order.status]}
@@ -445,6 +526,32 @@ export default function Checkout() {
           </div>
         </div>
       </div>
+
+      {showCompare && order && (
+        <PhotoCompareModal
+          open={showCompare}
+          onClose={() => setShowCompare(false)}
+          plateNumber={order.plateNumber}
+          beforePhotos={order.beforePhotos ?? []}
+          afterPhotos={order.afterPhotos ?? []}
+          services={order.services.map((s) => s.serviceName)}
+        />
+      )}
+
+      {previewSrc && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 animate-[fadeIn_.15s_ease-out]"
+          onClick={() => setPreviewSrc(null)}
+        >
+          <img src={previewSrc} alt="" className="max-w-full max-h-full" />
+          <button
+            className="absolute top-6 right-6 text-white/70 hover:text-white"
+            onClick={() => setPreviewSrc(null)}
+          >
+            <X size={28} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

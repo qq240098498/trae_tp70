@@ -143,6 +143,8 @@ const DEMO_ORDERS: Order[] = [
     payableAmount: 35,
     paid: false,
     createdAt: todayStr,
+    beforePhotos: [],
+    afterPhotos: [],
   },
   {
     id: "O002",
@@ -162,6 +164,8 @@ const DEMO_ORDERS: Order[] = [
     paid: false,
     createdAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
     startedAt: new Date(now.getTime() - 20 * 60 * 1000).toISOString(),
+    beforePhotos: [],
+    afterPhotos: [],
   },
   {
     id: "O003",
@@ -179,6 +183,8 @@ const DEMO_ORDERS: Order[] = [
     createdAt: new Date(now.getTime() - 90 * 60 * 1000).toISOString(),
     startedAt: new Date(now.getTime() - 80 * 60 * 1000).toISOString(),
     completedAt: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+    beforePhotos: [],
+    afterPhotos: [],
   },
 ];
 
@@ -218,6 +224,9 @@ export interface AppStore {
     toPickup: number;
     totalMembers: number;
   };
+
+  addPhotos: (orderId: string, stage: "before" | "after", photos: string[]) => void;
+  removePhoto: (orderId: string, stage: "before" | "after", index: number) => void;
 }
 
 const calcDiscount = (
@@ -283,6 +292,8 @@ export const useAppStore = create<AppStore>()(
           paid: false,
           createdAt: new Date().toISOString(),
           remark,
+          beforePhotos: [],
+          afterPhotos: [],
         };
 
         set((s) => ({ orders: [order, ...s.orders] }));
@@ -467,14 +478,47 @@ export const useAppStore = create<AppStore>()(
           totalMembers: members.length,
         };
       },
+
+      addPhotos: (orderId, stage, photos) => {
+        set((s) => ({
+          orders: s.orders.map((o) => {
+            if (o.id !== orderId) return o;
+            const key = stage === "before" ? "beforePhotos" : "afterPhotos";
+            return { ...o, [key]: [...o[key], ...photos] };
+          }),
+        }));
+      },
+
+      removePhoto: (orderId, stage, index) => {
+        set((s) => ({
+          orders: s.orders.map((o) => {
+            if (o.id !== orderId) return o;
+            const key = stage === "before" ? "beforePhotos" : "afterPhotos";
+            const arr = [...o[key]];
+            arr.splice(index, 1);
+            return { ...o, [key]: arr };
+          }),
+        }));
+      },
     }),
     {
       name: "car-wash-store",
-      version: 1,
+      version: 2,
       partialize: (s) => ({
         members: s.members,
         orders: s.orders,
       }),
+      migrate: (persistedState: any, version) => {
+        if (!persistedState || !persistedState.orders) return persistedState;
+        if (version < 2) {
+          persistedState.orders = persistedState.orders.map((o: any) => ({
+            ...o,
+            beforePhotos: o.beforePhotos ?? [],
+            afterPhotos: o.afterPhotos ?? [],
+          }));
+        }
+        return persistedState;
+      },
     }
   )
 );

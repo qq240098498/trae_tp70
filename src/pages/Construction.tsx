@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import {
   PlayCircle,
@@ -9,10 +9,15 @@ import {
   MessageCircle,
   ArrowRightLeft,
   ListTodo,
+  Camera,
+  GitCompare,
+  ImagePlus,
 } from "lucide-react";
 import { useAppStore } from "@/store";
 import OrderCard from "@/components/OrderCard";
-import type { OrderStatus, Order } from "@/types";
+import PhotoUploadModal from "@/components/PhotoUploadModal";
+import PhotoCompareModal from "@/components/PhotoCompareModal";
+import type { OrderStatus, Order, PhotoStage } from "@/types";
 import { STATUS_TEXT } from "@/types";
 import { formatCurrency, getTimeAgo } from "@/utils/format";
 
@@ -72,6 +77,18 @@ export default function Construction() {
   const orders = useAppStore((s) => s.orders);
   const updateOrderStatus = useAppStore((s) => s.updateOrderStatus);
   const markNotified = useAppStore((s) => s.markNotified);
+  const addPhotos = useAppStore((s) => s.addPhotos);
+
+  const [uploadModal, setUploadModal] = useState<{
+    open: boolean;
+    order: Order | null;
+    stage: PhotoStage;
+  }>({ open: false, order: null, stage: "before" });
+
+  const [compareModal, setCompareModal] = useState<{
+    open: boolean;
+    order: Order | null;
+  }>({ open: false, order: null });
 
   const grouped = useMemo(() => {
     const g: Record<OrderStatus, Order[]> = {
@@ -103,8 +120,28 @@ export default function Construction() {
     }
   }, [highlightId, orders]);
 
+  const handleStartConstruction = (order: Order) => {
+    setUploadModal({ open: true, order, stage: "before" });
+  };
+
+  const handleCompleteConstruction = (order: Order) => {
+    setUploadModal({ open: true, order, stage: "after" });
+  };
+
   const handleMove = (orderId: string, next: OrderStatus) => {
     updateOrderStatus(orderId, next);
+  };
+
+  const handleUploadConfirm = (photos: string[]) => {
+    const { order, stage } = uploadModal;
+    if (!order) return;
+    addPhotos(order.id, stage, photos);
+    if (stage === "before") {
+      updateOrderStatus(order.id, "in_progress");
+    } else if (stage === "after") {
+      updateOrderStatus(order.id, "completed");
+    }
+    setUploadModal({ open: false, order: null, stage: "before" });
   };
 
   const totalWaiting = grouped.pending.length + grouped.in_progress.length;
@@ -170,6 +207,41 @@ export default function Construction() {
                     >
                       <OrderCard
                         order={o}
+                        photoBadge={
+                          <div className="flex items-center gap-1">
+                            {(o.beforePhotos ?? []).length > 0 && (
+                              <span
+                                title={`施工前 ${(o.beforePhotos ?? []).length} 张`}
+                                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-rose-600 border border-rose-200"
+                              >
+                                <Camera size={10} />
+                                {(o.beforePhotos ?? []).length}
+                              </span>
+                            )}
+                            {(o.afterPhotos ?? []).length > 0 && (
+                              <span
+                                title={`施工后 ${(o.afterPhotos ?? []).length} 张`}
+                                className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 border border-emerald-200"
+                              >
+                                <Camera size={10} />
+                                {(o.afterPhotos ?? []).length}
+                              </span>
+                            )}
+                            {(o.beforePhotos ?? []).length > 0 &&
+                              (o.afterPhotos ?? []).length > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompareModal({ open: true, order: o });
+                                  }}
+                                  title="查看前后对比"
+                                  className="inline-flex items-center justify-center p-1 rounded bg-navy-50 text-navy-600 border border-navy-200 hover:bg-navy-100 transition-colors"
+                                >
+                                  <GitCompare size={11} />
+                                </button>
+                              )}
+                          </div>
+                        }
                         actions={
                           <div className="flex flex-wrap gap-2 w-full">
                             {col.status === "completed" && !o.paid && (
@@ -198,24 +270,23 @@ export default function Construction() {
                               </>
                             )}
 
-                            {col.status !== "picked_up" && NEXT_STATUS[col.status] && (
+                            {col.status === "pending" && (
                               <button
-                                onClick={() =>
-                                  handleMove(o.id, NEXT_STATUS[col.status]!)
-                                }
-                                className={`inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white transition-colors flex-1 ${
-                                  col.status === "completed"
-                                    ? "bg-sky-500 hover:bg-sky-600"
-                                    : col.status === "in_progress"
-                                    ? "bg-emerald-500 hover:bg-emerald-600"
-                                    : "bg-amber-500 hover:bg-amber-600"
-                                }`}
-                                style={col.status === "completed" ? { display: "none" } : {}}
+                                onClick={() => handleStartConstruction(o)}
+                                className="inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white transition-colors flex-1 bg-amber-500 hover:bg-amber-600"
                               >
-                                <ArrowRightLeft className="h-3.5 w-3.5" />
-                                {col.status === "pending"
-                                  ? "开始施工"
-                                  : "施工完成"}
+                                <ImagePlus className="h-3.5 w-3.5" />
+                                开始施工
+                              </button>
+                            )}
+
+                            {col.status === "in_progress" && (
+                              <button
+                                onClick={() => handleCompleteConstruction(o)}
+                                className="inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white transition-colors flex-1 bg-emerald-500 hover:bg-emerald-600"
+                              >
+                                <Camera className="h-3.5 w-3.5" />
+                                施工完成
                               </button>
                             )}
 
@@ -261,6 +332,40 @@ export default function Construction() {
           );
         })}
       </div>
+
+      {uploadModal.open && uploadModal.order && (
+        <PhotoUploadModal
+          open={uploadModal.open}
+          onClose={() => setUploadModal({ open: false, order: null, stage: "before" })}
+          orderId={uploadModal.order.id}
+          plateNumber={uploadModal.order.plateNumber}
+          stage={uploadModal.stage}
+          services={uploadModal.order.services.map((s) => s.serviceName)}
+          existingPhotos={
+            uploadModal.stage === "before"
+              ? uploadModal.order.beforePhotos ?? []
+              : uploadModal.order.afterPhotos ?? []
+          }
+          beforePhotosForReference={
+            uploadModal.stage === "after"
+              ? uploadModal.order.beforePhotos ?? []
+              : undefined
+          }
+          onConfirm={handleUploadConfirm}
+          allowCompare={uploadModal.stage === "after"}
+        />
+      )}
+
+      {compareModal.open && compareModal.order && (
+        <PhotoCompareModal
+          open={compareModal.open}
+          onClose={() => setCompareModal({ open: false, order: null })}
+          plateNumber={compareModal.order.plateNumber}
+          beforePhotos={compareModal.order.beforePhotos ?? []}
+          afterPhotos={compareModal.order.afterPhotos ?? []}
+          services={compareModal.order.services.map((s) => s.serviceName)}
+        />
+      )}
     </div>
   );
 }

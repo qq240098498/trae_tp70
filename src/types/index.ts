@@ -13,6 +13,8 @@ export type PaymentMethod =
   | "member_times"
   | "member_balance";
 
+export type PhotoStage = "before" | "after";
+
 export interface Service {
   id: string;
   name: string;
@@ -64,6 +66,8 @@ export interface Order {
   completedAt?: string;
   pickedUpAt?: string;
   remark?: string;
+  beforePhotos: string[];
+  afterPhotos: string[];
 }
 
 export const STATUS_TEXT: Record<OrderStatus, string> = {
